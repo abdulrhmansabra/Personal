@@ -1,12 +1,6 @@
 name: Auto Download and Upload Video
 
 on:
-  workflow_dispatch:
-    inputs:
-      video_url:
-        description: 'رابط الفيديو المؤقت من ToAPIs'
-        required: true
-        type: string
   repository_dispatch:
     types: [generate_video]
 
@@ -27,25 +21,22 @@ jobs:
 
       - name: Run download and commit script
         env:
-          TEMP_URL: ${{ github.event.inputs.video_url || github.event.client_payload.video_url }}
+          TEMP_URL: ${{ github.event.client_payload.video_url }}
+          FILE_NAME: ${{ github.event.client_payload.file_name }}
         run: |
           python -c "
-          import os, requests, time
+          import os, requests
           url = os.environ.get('TEMP_URL')
-          if not url:
-              print('خطأ: لم يتم العثور على الرابط المؤقت!')
-              exit(1)
-              
-          print('جاري تحميل الفيديو عبر سيرفرات GitHub...')
+          filename = f'videos/{os.environ.get(\"FILE_NAME\", \"video\")}.mp4'
+          
+          print('جاري تحميل الفيديو...')
           res = requests.get(url, timeout=120)
           if res.status_code == 200:
-              filename = f'videos/video_{int(time.time())}.mp4'
               os.makedirs('videos', exist_ok=True)
               with open(filename, 'wb') as f:
                   f.write(res.content)
-              print(f'تم حفظ الفيديو بنجاح باسم: {filename}')
+              print(f'تم حفظ الفيديو: {filename}')
           else:
-              print(f'فشل التحميل، رمز الاستجابة: {res.status_code}')
               exit(1)
           "
 
@@ -54,5 +45,5 @@ jobs:
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
           git add videos/
-          git commit -m "Auto upload AI video from Android/Manual"
+          git commit -m "Auto upload video from App"
           git push
