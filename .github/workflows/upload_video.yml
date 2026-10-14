@@ -1,11 +1,11 @@
-name: Auto Download and Upload Video
+name: Auto Download, Upload and Clean Video
 
 on:
   repository_dispatch:
-    types: [generate_video]
+    types: [generate_video, delete_video]
 
 jobs:
-  upload:
+  process:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -19,7 +19,9 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
-      - name: Run download and commit script
+      # خطوة الرفع والتجهيز
+      - name: Run download script
+        if: github.event.action == 'generate_video'
         env:
           TEMP_URL: ${{ github.event.client_payload.video_url }}
           FILE_NAME: ${{ github.event.client_payload.file_name }}
@@ -27,23 +29,27 @@ jobs:
           python -c "
           import os, requests
           url = os.environ.get('TEMP_URL')
-          filename = f'videos/{os.environ.get(\"FILE_NAME\", \"video\")}.mp4'
-          
-          print('جاري تحميل الفيديو...')
+          filename = f'videos/{os.environ.get(\"FILE_NAME\")}.mp4'
           res = requests.get(url, timeout=120)
           if res.status_code == 200:
               os.makedirs('videos', exist_ok=True)
               with open(filename, 'wb') as f:
                   f.write(res.content)
-              print(f'تم حفظ الفيديو: {filename}')
-          else:
-              exit(1)
           "
 
-      - name: Commit and Push to GitHub
+      # خطوة الحذف بناءً على طلب التطبيق
+      - name: Delete video file
+        if: github.event.action == 'delete_video'
+        env:
+          FILE_NAME: ${{ github.event.client_payload.file_name }}
+        run: |
+          rm -f videos/${{ github.event.client_payload.file_name }}.mp4
+
+      # الحفظ والتحديث على المستودع
+      - name: Commit and Push
         run: |
           git config --global user.name "GitHub Action Bot"
           git config --global user.email "action@github.com"
-          git add videos/
-          git commit -m "Auto upload video from App"
+          git add .
+          git diff-index --quiet HEAD || git commit -m "Auto update videos"
           git push
